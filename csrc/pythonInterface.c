@@ -5,8 +5,21 @@
 
 #if BUILD_CUDA
 #include <ops.cuh>
+
+#ifdef BITS_AND_BYTES_USE_ROCM
+#include <hipblaslt/hipblaslt.h>
+#define cublasLtHandle_t hipblasLtHandle_t
+#define cudaMemAttachHost hipMemAttachHost
+#define cudaMallocManaged hipMallocManaged
+#define cudaDevAttrConcurrentManagedAccess hipDeviceAttributeConcurrentManagedAccess
+#define cudaDeviceGetAttribute hipDeviceGetAttribute
+#define cudaMemPrefetchAsync hipMemPrefetchAsync
+#endif
+
 #endif
 #include <cpu_ops.h>
+
+
 
 // We cannot call templated code from C, so we wrap the template in a C compatible call here if necessary.
 // We use macro functions to expand all the different optimizers. Looks ugly, and is ugly, but its better than to

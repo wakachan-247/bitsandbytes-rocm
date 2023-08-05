@@ -4,6 +4,23 @@
 // LICENSE file in the root directory of this source tree.
 
 #include <kernels.cuh>
+
+#ifdef BITS_AND_BYTES_USE_ROCM
+#include <hip/hip_runtime.h>
+#include <hipcub/hipcub.hpp>
+#include <hipcub/block/block_radix_sort.hpp>
+#include <hipcub/warp/warp_reduce.hpp>
+#include <hipcub/block/block_load.hpp>
+#include <hipcub/block/block_discontinuity.hpp>
+#include <hipcub/block/block_store.hpp>
+#include <hipcub/block/block_reduce.hpp>
+#include <hip/hip_math_constants.h>
+#define cub hipcub
+#define __syncwarp __syncthreads //TODO: HIP doesn't have this so just sync threads
+
+#else
+#include <math_constants.h>
+#include <mma.h>
 #include <cub/block/block_radix_sort.cuh>
 #include <cub/warp/warp_reduce.cuh>
 #include <cub/block/block_load.cuh>
@@ -11,18 +28,17 @@
 #include <cub/block/block_store.cuh>
 #include <cub/block/block_reduce.cuh>
 #include <cub/cub.cuh>
-#include <math_constants.h>
+#endif
+
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
-#include <mma.h>
-
 
 #define HLF_MAX 65504
 #define TH 1024
 #define NUM 4
 #define NUM_BLOCK 4096
 
-
+#ifndef BITS_AND_BYTES_USE_ROCM
 // source: https://stackoverflow.com/questions/17399119/how-do-i-use-atomicmax-on-floating-point-values-in-cuda
 __device__ float atomicMax(float* address, float val) {
   int* address_as_i = reinterpret_cast<int*>(address);
@@ -47,6 +63,7 @@ __device__ float atomicMin(float* address, float val) {
   } while (assumed != old);
   return __int_as_float(old);
 }
+#endif
 
 __device__ float dDequantizeFP4(unsigned char val, float absmax)
 {
@@ -723,6 +740,19 @@ template<typename T, int BLOCK_SIZE, int NUM_PER_TH, int STOCHASTIC, int DATA_TY
 //__launch_bounds__(TH, 4)
 __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float *absmax, unsigned char *out, float * __restrict__ const rand, const int rand_offset, const int n)
 {
+  #ifdef BITS_AND_BYTES_USE_ROCM
+    printf("kQuantizeBlockwise is not supported on Rocm!");
+
+    //TODO: figure out how to make compiler recognize what isn't executed based on template arguments, without the code below in ifndef would trigger static_assert if
+    //this condition is true
+    if ((BLOCK_SIZE / NUM_PER_TH % 64) != 0) 
+    {  
+      printf("kQuantizeBlockwise not fully supported on Rocm! BLOCK_SIZE/NUM_PER_TH needs to be divisible by 64.");
+      return;
+    }
+  #endif
+
+  #ifndef BITS_AND_BYTES_USE_ROCM
   const int n_full = gridDim.x * BLOCK_SIZE;
   int valid_items = 0;
   const int base_idx = (blockIdx.x * BLOCK_SIZE);
@@ -824,6 +854,7 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
     __syncthreads();
     StoreChar(storec).Store(&(out[(DATA_TYPE > 0) ? i/2 : i]), qvals, (DATA_TYPE > 0) ? (valid_items+1)/2 : valid_items);
   }
+  #endif
 }
 
 template<typename T, int TILE_SIZE, int THREADS, int NUM_PER_TH, int DATA_TYPE>
@@ -3955,6 +3986,7 @@ MAKE_optimizerStatic8bit2State(ADAM, float)
 
 template __global__ void kPercentileClipping<float, 2048, 4>(float * __restrict__ g, float *gnorm_vec, int step, const int n);
 template __global__ void kPercentileClipping<half, 2048, 4>(half * __restrict__ g, float *gnorm_vec, int step, const int n);
+
 
 #define MAKE_kQuantizeBlockwise(dtype, blocksize, num_per_thread, stochastic, data_type_name) \
 template __global__ void kQuantizeBlockwise<dtype, blocksize, num_per_thread, stochastic, data_type_name>(float * code, dtype * __restrict__ const A, float *absmax, unsigned char *out, float * __restrict__ const rand, const int rand_offset, const int n); \
