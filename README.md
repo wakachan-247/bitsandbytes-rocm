@@ -9,6 +9,32 @@ Resources:
 
 - [LLM.int8() Paper](https://arxiv.org/abs/2208.07339) -- [LLM.int8() Software Blog Post](https://huggingface.co/blog/hf-bitsandbytes-integration) -- [LLM.int8() Emergent Features Blog Post](https://timdettmers.com/2022/08/17/llm-int8-and-emergent-features/)
 
+
+## Quickstart Rocm
+
+Works well with these docker images:
+- [rocm/pytorch](https://hub.docker.com/r/rocm/pytorch)
+- [rocm/pytorch-nightly](https://hub.docker.com/r/rocm/pytorch-nightly).
+
+For installation then do:
+```bash
+git clone https://github.com/arlo-phoenix/bitsandbytes-rocm-5.6.git bitsandbytes
+cd bitsandbytes
+
+#see makefile comments under hip for more info
+make hip
+python setup.py install
+```
+
+## Info about this port / Credits
+
+Instead of just using the [hipified](https://github.com/ROCm-Developer-Tools/HIPIFY) output, I went through all the different variables/functions and used defines to make the Cuda code use the HIP equivalents. That idea is taken from the [llama.cpp rocblas port](https://github.com/ggerganov/llama.cpp/pull/1087).
+
+The python/makefile/compatibility changes are just copied from [this clean older rocm port](https://github.com/agrocylo/bitsandbytes-rocm) by @agrocylo. Thanks for that, was easy to look through.
+
+I very much recommend using docker if you want to run this. As this just redefines some Cuda variables/functions, I also had to include all the needed dependency headers. Including [hipBLASlt](https://github.com/ROCmSoftwarePlatform/hipBLASLt), which is still in it's infancy and not supported by most architectures, the header works though. That's also why some of the newer functions won't work and will just log that they are not functioning. The optimizers like AdamW8bit should work though and this fork will be a lot easier to keep up to date when the Cuda source files change.
+
+
 ## TL;DR
 **Requirements**
 Python >=3.8. Linux distribution (Ubuntu, MacOS, etc.) + CUDA > 10.0.
