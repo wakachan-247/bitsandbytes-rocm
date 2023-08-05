@@ -6,10 +6,8 @@ GPP:= /usr/bin/g++
 ifeq ($(CUDA_HOME),)
 	CUDA_HOME:= $(shell which nvcc | rev | cut -d'/' -f3- | rev)
 endif
-
-ifndef CUDA_VERSION
-$(warning WARNING: CUDA_VERSION not set. Call make with CUDA string, for example: make cuda11x CUDA_VERSION=115 or make cpuonly CUDA_VERSION=CPU)
-CUDA_VERSION:=
+ifeq ($(ROCM_HOME),)
+	ROCM_HOME:= $(shell which hipcc | rev | cut -d'/' -f4- | rev)
 endif
 
 
@@ -112,6 +110,18 @@ cuda12x: $(BUILD_DIR) env
 
 cpuonly: $(BUILD_DIR) env
 	$(GPP) -std=c++14 -shared -fPIC -I $(ROOT_DIR)/csrc -I $(ROOT_DIR)/include $(FILES_CPP) -o ./bitsandbytes/libbitsandbytes_cpu.so
+
+
+HIP_INCLUDE := -I $(ROCM_HOME)/include -I $(ROOT_DIR)/csrc -I $(ROOT_DIR)/include 
+HIP_LIB := -L $(ROCM_HOME)/lib -lhipblas -lhiprand -lhipsparse #-lhipblaslt #TODO: check if this is actually only gfx90a
+
+hip: $(BUILD_DIR)
+	# Add --offload-arch=gfx1030 if this fails
+	/usr/bin/hipcc -std=c++14 -c -fPIC $(HIP_INCLUDE) -o $(BUILD_DIR)/ops.o -D NO_CUBLASLT -D BITS_AND_BYTES_USE_ROCM $(CSRC)/ops.cu
+	/usr/bin/hipcc -std=c++14 -c -fPIC $(HIP_INCLUDE) -o $(BUILD_DIR)/kernels.o -D NO_CUBLASLT -D BITS_AND_BYTES_USE_ROCM $(CSRC)/kernels.cu
+	# /usr/bin/hipcc -fPIC -static $(BUILD_DIR)/ops.o $(BUILD_DIR)/kernels.o -o $(BUILD_DIR)/link.so 
+	# HCC is deprecated, but used by hipBLASlt header. Since blas isn't even used doesn't matter, this is just so that it even compiles
+	$(GPP) -std=c++14 -D__HIP_PLATFORM_HCC__ -D__HIP_PLATFORM_AMD__ -DBUILD_CUDA -DBITS_AND_BYTES_USE_ROCM -shared -fPIC $(HIP_INCLUDE) $(BUILD_DIR)/ops.o $(BUILD_DIR)/kernels.o $(FILES_CPP) $(HIP_LIB) -o ./bitsandbytes/libbitsandbytes_hip_nohipblaslt.so
 
 env:
 	@echo "ENVIRONMENT"
