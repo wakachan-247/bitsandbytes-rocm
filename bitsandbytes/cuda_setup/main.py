@@ -308,10 +308,14 @@ def determine_cuda_runtime_lib_path() -> Union[Path, None]:
 
 # https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART____VERSION.html#group__CUDART____VERSION
 def get_cuda_version():
-    major, minor = map(int, torch.version.cuda.split("."))
+    if torch.version.cuda:
+        major, minor = map(int, torch.version.cuda.split("."))
 
     if major < 11:
         CUDASetup.get_instance().add_log_entry('CUDA SETUP: CUDA version lower than 11 are currently not supported for LLM.int8(). You will be only to use 8-bit optimizers and quantization routines!!')
+    elif torch.version.hip:
+        major, minor = map(int, torch.version.hip.split("."))
+    
 
     return f'{major}{minor}'
 
@@ -332,7 +336,9 @@ def evaluate_cuda_setup():
         cuda_setup.add_log_entry(('Welcome to bitsandbytes. For bug reports, please run\n\npython -m bitsandbytes\n\n'),
               ('and submit this information together with your error trace to: https://github.com/TimDettmers/bitsandbytes/issues'))
         cuda_setup.add_log_entry('='*80)
+
     if not torch.cuda.is_available(): return 'libbitsandbytes_cpu.so', None, None, None
+    if torch.version.hip: return 'libbitsandbytes_hip_nohipblaslt.so', None, None, None
 
     cudart_path = determine_cuda_runtime_lib_path()
     ccs = get_compute_capabilities()
