@@ -20,11 +20,10 @@ For installation then do:
 ```bash
 git clone https://github.com/arlo-phoenix/bitsandbytes-rocm-5.6.git bitsandbytes
 cd bitsandbytes
-
-#see makefile comments under hip for more info
-make hip
-python setup.py install
+make hip ROCM_TARGET=gfx...
+pip install .
 ```
+see https://www.llvm.org/docs/AMDGPUUsage.html#processors for finding ROCM_TARGET (e.g. gfx1030 for 6800XT,6900XT)
 
 ## Info about this port / Credits
 
