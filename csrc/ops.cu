@@ -11,7 +11,7 @@
 #include <common.h>
 
 #ifdef BITS_AND_BYTES_USE_ROCM
-//#include <hipcub/device/device_scan.hpp>
+#include <hipcub/device/device_scan.hpp>
 #else
 #include <cub/device/device_scan.cuh>
 #endif

@@ -736,23 +736,26 @@ __global__ void kQuantize(float * code, float * __restrict__ const A, unsigned c
   }
 }
 
-template<typename T, int BLOCK_SIZE, int NUM_PER_TH, int STOCHASTIC, int DATA_TYPE>
+template<typename T, int REQUESTED_BLOCK_SIZE, int NUM_PER_TH, int STOCHASTIC, int DATA_TYPE>
 //__launch_bounds__(TH, 4)
 __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float *absmax, unsigned char *out, float * __restrict__ const rand, const int rand_offset, const int n)
 {
-  #ifdef BITS_AND_BYTES_USE_ROCM
-    printf("kQuantizeBlockwise is not supported on Rocm!");
+  #ifdef DISABLE_WARP_32
+    //CUDA has warpsize 32 so just multiply by 2 to get amd warp size
+    //currently just stopping below with a return anyways so this size isn't actually used, just needed for compilation
+    const int BLOCK_SIZE=((REQUESTED_BLOCK_SIZE / NUM_PER_TH % 64) != 0 ) ? REQUESTED_BLOCK_SIZE * 2 : REQUESTED_BLOCK_SIZE;
 
     //TODO: figure out how to make compiler recognize what isn't executed based on template arguments, without the code below in ifndef would trigger static_assert if
     //this condition is true
-    if ((BLOCK_SIZE / NUM_PER_TH % 64) != 0) 
+    if ((REQUESTED_BLOCK_SIZE / NUM_PER_TH % 64) != 0) 
     {  
       printf("kQuantizeBlockwise not fully supported on Rocm! BLOCK_SIZE/NUM_PER_TH needs to be divisible by 64.");
       return;
     }
+  #else
+    const int BLOCK_SIZE=REQUESTED_BLOCK_SIZE;
   #endif
 
-  #ifndef BITS_AND_BYTES_USE_ROCM
   const int n_full = gridDim.x * BLOCK_SIZE;
   int valid_items = 0;
   const int base_idx = (blockIdx.x * BLOCK_SIZE);
@@ -854,7 +857,6 @@ __global__ void kQuantizeBlockwise(float * code, T * __restrict__ const A, float
     __syncthreads();
     StoreChar(storec).Store(&(out[(DATA_TYPE > 0) ? i/2 : i]), qvals, (DATA_TYPE > 0) ? (valid_items+1)/2 : valid_items);
   }
-  #endif
 }
 
 template<typename T, int TILE_SIZE, int THREADS, int NUM_PER_TH, int DATA_TYPE>

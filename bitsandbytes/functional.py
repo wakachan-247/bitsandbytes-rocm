@@ -815,6 +815,7 @@ def quantize_4bit(A: Tensor, absmax: Tensor = None, out: Tensor = None, blocksiz
     if out is None:
         out = torch.zeros(((n+1)//2, 1), dtype=torch.uint8, device=A.device)
 
+    #TODO: catch rocm wave64 only, pytorch has a property, but that one likely contains the wrong waveSize
     assert blocksize in [4096, 2048, 1024, 512, 256, 128, 64]
 
     prev_device = pre_call(A.device)

@@ -14,6 +14,10 @@
 
 
 #ifdef BITS_AND_BYTES_USE_ROCM
+#ifndef DISABLE_WARP_32
+   #define __AMDGCN_WAVEFRONT_SIZE 32 // check rocminfo | grep "Wavefront Size". Should be supported on all new GPU's
+#endif
+
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_fp16.h>
 #include <hipblas/hipblas.h>
